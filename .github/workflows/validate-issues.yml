@@ -1,0 +1,95 @@
+name: Validate Issues
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate issue
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const body = issue.body || '';
+            const title = issue.title || '';
+
+            // Required sections that your forms should produce.
+            const requiredSections = [
+              '## Opis',
+              '## Očekivano ponašanje'
+            ];
+
+            const missingSections = requiredSections.filter(
+              section => !body.includes(section)
+            );
+
+            // Basic quality checks
+            const tooShort = body.trim().length < 150;
+
+            if (missingSections.length === 0 && !tooShort) {
+              console.log('Issue passed validation.');
+              return;
+            }
+
+            let reasons = [];
+
+            if (tooShort) {
+              reasons.push(
+                'Opis problema je prekratak. Molimo navedite dovoljno informacija da se problem može razumjeti i obraditi.'
+              );
+            }
+
+            if (missingSections.length > 0) {
+              reasons.push(
+                `Nedostaju obavezne sekcije: ${missingSections.join(', ')}`
+              );
+            }
+
+            const comment = `
+            ## ⚠️ Issue nije pravilno prijavljen
+
+            Ovaj issue je automatski zatvoren jer ne sadrži dovoljno informacija ili nije prijavljen putem odgovarajućeg obrasca.
+
+            **Što treba napraviti:**
+
+            ${reasons.map(r => `- ${r}`).join('\n')}
+
+            Molimo otvorite novi issue i odaberite odgovarajući obrazac:
+
+            - 🐛 **Prijava greške**
+            - 💡 **Zahtjev za značajku**
+            - 🛠️ **Zadatak / Posao**
+
+            Hvala!
+            `;
+
+            // Add label
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              labels: ['invalid']
+            });
+
+            // Explain the problem
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: comment
+            });
+
+            // Close the issue
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              state: 'closed'
+            });
