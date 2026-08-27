@@ -38,9 +38,3 @@ Ako je primjenjivo, priložite snimke zaslona koje prikazuju problem.
 
 ## Privremena rješenja
 Ako ste pronašli privremeno rješenje, opišite ga ovdje.
-
-## Povezana dokumentacija / Logic ID
-Ako se ova greška odnosi na dokumentirano poslovno pravilo, navedite Logic ID(ove): npr. `LEAD-CREATE-001`
-
-## Prioritet / Utjecaj
-Nizak / Srednji / Visok — ukratko objasnite utjecaj na korisnika ili poslovanje.
