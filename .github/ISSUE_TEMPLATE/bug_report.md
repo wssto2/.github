@@ -6,6 +6,8 @@ labels: bug, needs-triage
 assignees: ''
 ---
 
+<!-- ISSUE_TEMPLATE:BUG -->
+
 <!--
 Koristite ovaj predložak za prijavu defekata. Budite sažeti, ali uključite korake za reprodukciju.
 -->
