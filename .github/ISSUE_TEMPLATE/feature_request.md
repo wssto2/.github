@@ -6,6 +6,8 @@ labels: enhancement, needs-triage
 assignees: ''
 ---
 
+<!-- ISSUE_TEMPLATE:FEATURE -->
+
 ## Sažetak
 Kratki opis tražene značajke i problema koji rješava.
 
