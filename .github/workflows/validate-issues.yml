@@ -2,7 +2,8 @@ name: Validate Issues
 
 on:
   issues:
-    types: [opened]
+    types:
+      - opened
 
 permissions:
   issues: write
@@ -20,76 +21,215 @@ jobs:
             const body = issue.body || '';
             const title = issue.title || '';
 
-            // Required sections that your forms should produce.
-            const requiredSections = [
-              '## Opis',
-              '## Očekivano ponašanje'
-            ];
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issueNumber = issue.number;
 
-            const missingSections = requiredSections.filter(
-              section => !body.includes(section)
-            );
+            //
+            // 1. Determine which template was used.
+            //
+            let template = null;
 
-            // Basic quality checks
-            const tooShort = body.trim().length < 150;
+            if (body.includes('<!-- ISSUE_TEMPLATE:BUG -->')) {
+              template = 'BUG';
+            } else if (body.includes('<!-- ISSUE_TEMPLATE:FEATURE -->')) {
+              template = 'FEATURE';
+            } else if (body.includes('<!-- ISSUE_TEMPLATE:TASK -->')) {
+              template = 'TASK';
+            }
 
-            if (missingSections.length === 0 && !tooShort) {
-              console.log('Issue passed validation.');
+            //
+            // 2. Blank issue = automatically invalid.
+            //
+            if (!template) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                labels: ['invalid']
+              });
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body: `## ⚠️ Neispravan način prijave
+
+                Ovaj issue nije otvoren putem jednog od predviđenih predložaka.
+
+                Molimo otvorite novi issue i odaberite odgovarajući predložak:
+
+                - 🐛 **Prijava greške**
+                - 💡 **Zahtjev za značajku**
+                - 🛠️ **Zadatak / Posao**
+
+                Ovaj issue je automatski zatvoren.`
+              });
+
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                state: 'closed'
+              });
+
               return;
             }
 
-            let reasons = [];
+            //
+            // 3. Validate the actual content.
+            //
+            const failures = [];
 
-            if (tooShort) {
-              reasons.push(
-                'Opis problema je prekratak. Molimo navedite dovoljno informacija da se problem može razumjeti i obraditi.'
+            function sectionContent(sectionName) {
+              const regex = new RegExp(
+                `## ${sectionName}\\s*([\\s\\S]*?)(?=\\n## |$)`,
+                'i'
               );
+
+              const match = body.match(regex);
+
+              if (!match) {
+                return '';
+              }
+
+              return match[1]
+                .replace(/<!--[\s\S]*?-->/g, '')
+                .trim();
             }
 
-            if (missingSections.length > 0) {
-              reasons.push(
-                `Nedostaju obavezne sekcije: ${missingSections.join(', ')}`
-              );
+            function isMeaningful(text) {
+              if (!text) return false;
+
+              // Remove common Markdown/template placeholders.
+              const cleaned = text
+                .replace(/\(.*?\)/g, '')
+                .replace(/Korak [ABC]/gi, '')
+                .replace(/Stavka [123]/gi, '')
+                .trim();
+
+              return cleaned.length >= 20;
             }
 
-            const comment = `
-            ## ⚠️ Issue nije pravilno prijavljen
+            //
+            // BUG
+            //
+            if (template === 'BUG') {
+              const summary = sectionContent('Sažetak');
+              const reproduction = sectionContent('Koraci za reprodukciju');
+              const expected = sectionContent('Očekivano ponašanje');
+              const actual = sectionContent('Stvarno ponašanje');
+              const environment = sectionContent('Okruženje');
 
-            Ovaj issue je automatski zatvoren jer ne sadrži dovoljno informacija ili nije prijavljen putem odgovarajućeg obrasca.
+              if (!isMeaningful(summary)) {
+                failures.push('**Sažetak** nije dovoljno opisan.');
+              }
 
-            **Što treba napraviti:**
+              if (!isMeaningful(reproduction)) {
+                failures.push('**Koraci za reprodukciju** nisu navedeni.');
+              }
 
-            ${reasons.map(r => `- ${r}`).join('\n')}
+              if (!isMeaningful(expected)) {
+                failures.push('**Očekivano ponašanje** nije opisano.');
+              }
 
-            Molimo otvorite novi issue i odaberite odgovarajući obrazac:
+              if (!isMeaningful(actual)) {
+                failures.push('**Stvarno ponašanje** nije opisano.');
+              }
+
+              if (!isMeaningful(environment)) {
+                failures.push('**Okruženje** nije navedeno.');
+              }
+            }
+
+            //
+            // FEATURE
+            //
+            if (template === 'FEATURE') {
+              const summary = sectionContent('Sažetak');
+              const solution = sectionContent('Predloženo rješenje');
+              const alternatives = sectionContent('Razmatrane alternative');
+
+              if (!isMeaningful(summary)) {
+                failures.push('**Sažetak** nije dovoljno opisan.');
+              }
+
+              if (!isMeaningful(solution)) {
+                failures.push('**Predloženo rješenje** nije opisano.');
+              }
+
+              if (!isMeaningful(alternatives)) {
+                failures.push('**Razmatrane alternative** nisu navedene.');
+              }
+            }
+
+            //
+            // TASK
+            //
+            if (template === 'TASK') {
+              const summary = sectionContent('Sažetak');
+              const acceptance = sectionContent('Kriteriji prihvaćanja');
+              const steps = sectionContent('Koraci');
+
+              if (!isMeaningful(summary)) {
+                failures.push('**Sažetak** nije dovoljno opisan.');
+              }
+
+              if (!isMeaningful(acceptance)) {
+                failures.push('**Kriteriji prihvaćanja** nisu navedeni.');
+              }
+
+              if (!isMeaningful(steps)) {
+                failures.push('**Koraci** nisu opisani.');
+              }
+            }
+
+            //
+            // 4. Everything is OK.
+            //
+            if (failures.length === 0) {
+              console.log(`Issue #${issueNumber} passed validation as ${template}.`);
+              return;
+            }
+
+            //
+            // 5. Invalid issue.
+            //
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              labels: ['invalid']
+            });
+
+            const message = `## ⚠️ Issue nije dovoljno opisan
+
+            Ovaj issue je automatski zatvoren jer ne sadrži dovoljno informacija za obradu.
+
+            **Nedostaje ili nije dovoljno opisano:**
+
+            ${failures.map(f => `- ${f}`).join('\n')}
+
+            Molimo otvorite novi issue koristeći odgovarajući predložak i uključite potrebne informacije.
+
+            Predlošci:
 
             - 🐛 **Prijava greške**
             - 💡 **Zahtjev za značajku**
             - 🛠️ **Zadatak / Posao**
 
-            Hvala!
-            `;
+            Hvala!`;
 
-            // Add label
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue.number,
-              labels: ['invalid']
-            });
-
-            // Explain the problem
             await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue.number,
-              body: comment
+              owner,
+              repo,
+              issue_number: issueNumber,
+              body: message
             });
 
-            // Close the issue
             await github.rest.issues.update({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue.number,
+              owner,
+              repo,
+              issue_number: issueNumber,
               state: 'closed'
             });
