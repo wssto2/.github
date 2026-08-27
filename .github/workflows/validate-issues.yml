@@ -137,9 +137,9 @@ jobs:
                 failures.push('**Stvarno ponašanje** nije opisano.');
               }
 
-              if (!isMeaningful(environment)) {
+              /*if (!isMeaningful(environment)) {
                 failures.push('**Okruženje** nije navedeno.');
-              }
+              }*/
             }
 
             //
@@ -158,9 +158,9 @@ jobs:
                 failures.push('**Predloženo rješenje** nije opisano.');
               }
 
-              if (!isMeaningful(alternatives)) {
+              /*if (!isMeaningful(alternatives)) {
                 failures.push('**Razmatrane alternative** nisu navedene.');
-              }
+              }*/
             }
 
             //
@@ -179,9 +179,9 @@ jobs:
                 failures.push('**Kriteriji prihvaćanja** nisu navedeni.');
               }
 
-              if (!isMeaningful(steps)) {
+              /*if (!isMeaningful(steps)) {
                 failures.push('**Koraci** nisu opisani.');
-              }
+              }*/
             }
 
             //
