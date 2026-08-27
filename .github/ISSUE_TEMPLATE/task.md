@@ -6,6 +6,8 @@ labels: chore
 assignees: ''
 ---
 
+<!-- ISSUE_TEMPLATE:TASK -->
+
 ## Sažetak
 Kratki opis zadatka.
 
